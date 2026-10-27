@@ -105,11 +105,19 @@ class ProxyHandler:
             f"Client {client_id} connected to proxy. Total clients: {len(self.clients)}"
         )
 
+        # Clients that do not display the model (e.g. an agent that only sends
+        # text-input) can connect with ?init_config=false. The server answers
+        # request-init-config with set-model-and-conf, which the proxy broadcasts to
+        # every client, and that resets the state and model of frontends on screen.
+        request_init_config = websocket.query_params.get(
+            "init_config", ""
+        ).lower() not in ("false", "0")
+
         # Ensure server connection is established
         if not self.connected:
             await self.connect_to_server()
 
-        if self.connected:
+        if self.connected and request_init_config:
             try:
                 init_request = {"type": "request-init-config", "client_id": client_id}
                 await self.forward_to_server(init_request, client_id)

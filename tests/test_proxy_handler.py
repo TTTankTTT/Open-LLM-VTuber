@@ -134,3 +134,15 @@ async def test_queued_text_input_waits_for_a_conversation_started_outside_the_qu
 
         await upstream.broadcast(CHAIN_END)
         await wait_until(lambda: "text-input" in upstream.types())
+
+
+@pytest.mark.asyncio
+async def test_init_config_false_skips_the_init_config_request(proxy):
+    upstream, url = proxy
+    async with connect(url + "?init_config=false"):
+        await wait_until(lambda: upstream.connections)
+        await asyncio.sleep(0.3)
+        assert "request-init-config" not in upstream.types()
+        async with connect(url):
+            await wait_until(lambda: "request-init-config" in upstream.types())
+    assert upstream.types().count("request-init-config") == 1
