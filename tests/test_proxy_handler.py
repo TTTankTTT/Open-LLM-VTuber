@@ -137,6 +137,18 @@ async def test_queued_text_input_waits_for_a_conversation_started_outside_the_qu
 
 
 @pytest.mark.asyncio
+async def test_audio_larger_than_4mb_reaches_clients(proxy):
+    upstream, url = proxy
+    audio = {"type": "audio", "audio": "A" * (5 * 1024 * 1024)}
+    async with connect(url, max_size=None) as frontend:
+        await wait_until(lambda: upstream.connections)
+        await upstream.broadcast(audio)
+        await upstream.broadcast(CHAIN_END)
+        await receive_until(frontend, audio)
+        await receive_until(frontend, CHAIN_END)
+
+
+@pytest.mark.asyncio
 async def test_init_config_false_skips_the_init_config_request(proxy):
     upstream, url = proxy
     async with connect(url + "?init_config=false"):

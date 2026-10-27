@@ -49,7 +49,12 @@ class ProxyHandler:
                 # Create session if not exists
                 if not self._session:
                     self._session = aiohttp.ClientSession()
-                self.server_ws = await self._session.ws_connect(self.server_url)
+                # Audio messages carry a whole sentence as base64 WAV and can exceed
+                # aiohttp's default 4 MB limit, which would drop the connection.
+                # The server is our own backend, so the limit is disabled (0).
+                self.server_ws = await self._session.ws_connect(
+                    self.server_url, max_msg_size=0
+                )
                 self.connected = True
                 logger.info(f"Proxy connected to server at {self.server_url}")
 
