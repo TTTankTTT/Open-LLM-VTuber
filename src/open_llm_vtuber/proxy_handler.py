@@ -220,6 +220,15 @@ class ProxyHandler:
                             if not data:  # Check if parsed data is empty
                                 continue
 
+                            # Conversations that did not come through the queue
+                            # (mic-audio-end, ai-speak-signal) are active too, so
+                            # queued text-input waits for them to end.
+                            if (
+                                data.get("type") == "control"
+                                and data.get("text") == "conversation-chain-start"
+                            ):
+                                self.message_queue.conversation_active = True
+
                             # Check for conversation end signal
                             if (
                                 data.get("type") == "control"
