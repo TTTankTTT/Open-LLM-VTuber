@@ -17,6 +17,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket
 from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
 
 from src.open_llm_vtuber.proxy_handler import ProxyHandler
 
@@ -46,7 +47,7 @@ class FakeServer:
         try:
             async for raw in websocket:
                 self.received.append(json.loads(raw))
-        except Exception:
+        except ConnectionClosed:  # the proxy dropped the connection
             pass
         finally:
             self.connections.discard(websocket)
