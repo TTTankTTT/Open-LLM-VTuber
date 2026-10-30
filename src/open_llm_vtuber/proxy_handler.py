@@ -49,7 +49,12 @@ class ProxyHandler:
                 # Create session if not exists
                 if not self._session:
                     self._session = aiohttp.ClientSession()
-                self.server_ws = await self._session.ws_connect(self.server_url)
+                # Audio messages carry a whole sentence as base64 WAV and can exceed
+                # aiohttp's default 4 MB limit, which would drop the connection.
+                # The server is our own backend, so the limit is disabled (0).
+                self.server_ws = await self._session.ws_connect(
+                    self.server_url, max_msg_size=0
+                )
                 self.connected = True
                 logger.info(f"Proxy connected to server at {self.server_url}")
 
@@ -105,11 +110,19 @@ class ProxyHandler:
             f"Client {client_id} connected to proxy. Total clients: {len(self.clients)}"
         )
 
+        # Clients that do not display the model (e.g. an agent that only sends
+        # text-input) can connect with ?init_config=false. The server answers
+        # request-init-config with set-model-and-conf, which the proxy broadcasts to
+        # every client, and that resets the state and model of frontends on screen.
+        request_init_config = websocket.query_params.get(
+            "init_config", ""
+        ).lower() not in ("false", "0")
+
         # Ensure server connection is established
         if not self.connected:
             await self.connect_to_server()
 
-        if self.connected:
+        if self.connected and request_init_config:
             try:
                 init_request = {"type": "request-init-config", "client_id": client_id}
                 await self.forward_to_server(init_request, client_id)
@@ -219,6 +232,15 @@ class ProxyHandler:
                             data = json.loads(msg.data)
                             if not data:  # Check if parsed data is empty
                                 continue
+
+                            # Conversations that did not come through the queue
+                            # (mic-audio-end, ai-speak-signal) are active too, so
+                            # queued text-input waits for them to end.
+                            if (
+                                data.get("type") == "control"
+                                and data.get("text") == "conversation-chain-start"
+                            ):
+                                self.message_queue.conversation_active = True
 
                             # Check for conversation end signal
                             if (
